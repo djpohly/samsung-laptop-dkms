@@ -36,14 +36,6 @@
  * BIOS to do things like brightness values, and "special" key controls.
  */
 
-/*
- * We have 0 - 8 as valid brightness levels.  The specs say that level 0 should
- * be reserved by the BIOS (which really doesn't make much sense), we tell
- * userspace that the value is 0 - 7 and then just tell the hardware 1 - 8
- */
-#define MAX_BRIGHT	0x07
-
-
 #define SABI_IFACE_MAIN			0x00
 #define SABI_IFACE_SUB			0x02
 #define SABI_IFACE_COMPLETE		0x04
