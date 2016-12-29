@@ -336,9 +336,6 @@ struct samsung_laptop {
 	struct samsung_rfkill bluetooth;
 
 	struct led_classdev kbd_led;
-	int kbd_led_wk;
-	struct workqueue_struct *led_workqueue;
-	struct work_struct kbd_led_work;
 
 	struct samsung_laptop_debug debug;
 	struct samsung_quirks *quirks;
@@ -1100,15 +1097,7 @@ static int kbd_backlight_write(struct samsung_laptop *samsung, int brightness)
 			    &data, NULL);
 }
 
-static void kbd_led_update(struct work_struct *work)
-{
-	struct samsung_laptop *samsung;
-
-	samsung = container_of(work, struct samsung_laptop, kbd_led_work);
-	kbd_backlight_write(samsung, samsung->kbd_led_wk);
-}
-
-static void kbd_led_set(struct led_classdev *led_cdev,
+static int kbd_led_set(struct led_classdev *led_cdev,
 			enum led_brightness value)
 {
 	struct samsung_laptop *samsung;
@@ -1120,8 +1109,7 @@ static void kbd_led_set(struct led_classdev *led_cdev,
 	else if (value < 0)
 		value = 0;
 
-	samsung->kbd_led_wk = value;
-	queue_work(samsung->led_workqueue, &samsung->kbd_led_work);
+	return kbd_backlight_write(samsung, value);
 }
 
 static enum led_brightness kbd_led_get(struct led_classdev *led_cdev)
@@ -1136,23 +1124,15 @@ static void samsung_leds_exit(struct samsung_laptop *samsung)
 {
 	if (!IS_ERR_OR_NULL(samsung->kbd_led.dev))
 		led_classdev_unregister(&samsung->kbd_led);
-	if (samsung->led_workqueue)
-		destroy_workqueue(samsung->led_workqueue);
 }
 
 static int __init samsung_leds_init(struct samsung_laptop *samsung)
 {
 	int ret = 0;
 
-	samsung->led_workqueue = create_singlethread_workqueue("led_workqueue");
-	if (!samsung->led_workqueue)
-		return -ENOMEM;
-
 	if (kbd_backlight_enable(samsung) >= 0) {
-		INIT_WORK(&samsung->kbd_led_work, kbd_led_update);
-
 		samsung->kbd_led.name = "samsung::kbd_backlight";
-		samsung->kbd_led.brightness_set = kbd_led_set;
+		samsung->kbd_led.brightness_set_blocking = kbd_led_set;
 		samsung->kbd_led.brightness_get = kbd_led_get;
 		samsung->kbd_led.max_brightness = 8;
 		if (samsung->quirks->four_kbd_backlight_levels)
