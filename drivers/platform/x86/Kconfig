@@ -920,7 +920,7 @@ config XO15_EBOOK
 	  convert the device into ebook form.
 
 config SAMSUNG_LAPTOP
-	tristate "Samsung Laptop driver"
+	tristate "Samsung laptop extras"
 	depends on RFKILL || RFKILL = n
 	depends on ACPI_VIDEO || ACPI_VIDEO = n
 	depends on BACKLIGHT_CLASS_DEVICE
