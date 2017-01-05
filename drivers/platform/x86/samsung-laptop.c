@@ -1494,14 +1494,6 @@ exit:
 	return ret;
 }
 
-static void samsung_platform_exit(struct samsung_laptop *samsung)
-{
-	if (samsung->platform_device) {
-		platform_device_unregister(samsung->platform_device);
-		samsung->platform_device = NULL;
-	}
-}
-
 static int samsung_pm_notification(struct notifier_block *nb,
 				   unsigned long val, void *ptr)
 {
@@ -1514,25 +1506,6 @@ static int samsung_pm_notification(struct notifier_block *nb,
 
 	if (val == PM_POST_HIBERNATION && samsung->quirks->lid_handling)
 		write_lid_handling(samsung, 1);
-
-	return 0;
-}
-
-static int __init samsung_platform_init(struct samsung_laptop *samsung)
-{
-	struct platform_device *pdev;
-	int ret;
-
-	pdev = platform_device_alloc("samsung", -1);
-	if (!pdev)
-		return -ENOMEM;
-	platform_set_drvdata(samsung->platform_device, samsung);
-
-	ret = platform_device_add(pdev);
-	if (ret) {
-		platform_device_put(pdev);
-		return ret;
-	}
 
 	return 0;
 }
@@ -1677,6 +1650,33 @@ static struct dmi_system_id __initdata samsung_dmi_table[] = {
 MODULE_DEVICE_TABLE(dmi, samsung_dmi_table);
 
 static struct platform_device *samsung_platform_device;
+
+static int __init samsung_platform_init(struct samsung_laptop *samsung)
+{
+	struct platform_device *pdev;
+	int ret;
+
+	pdev = platform_device_alloc("samsung", -1);
+	if (!pdev)
+		return -ENOMEM;
+	platform_set_drvdata(samsung->platform_device, samsung);
+
+	ret = platform_device_add(pdev);
+	if (ret) {
+		platform_device_put(pdev);
+		return ret;
+	}
+
+	return 0;
+}
+
+static void samsung_platform_exit(struct samsung_laptop *samsung)
+{
+	if (samsung->platform_device) {
+		platform_device_unregister(samsung->platform_device);
+		samsung->platform_device = NULL;
+	}
+}
 
 static int __init samsung_init(void)
 {
