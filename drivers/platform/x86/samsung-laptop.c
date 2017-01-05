@@ -1521,13 +1521,19 @@ static int samsung_pm_notification(struct notifier_block *nb,
 static int __init samsung_platform_init(struct samsung_laptop *samsung)
 {
 	struct platform_device *pdev;
+	int ret;
 
-	pdev = platform_device_register_simple("samsung", -1, NULL, 0);
-	if (IS_ERR(pdev))
-		return PTR_ERR(pdev);
-
-	samsung->platform_device = pdev;
+	pdev = platform_device_alloc("samsung", -1);
+	if (!pdev)
+		return -ENOMEM;
 	platform_set_drvdata(samsung->platform_device, samsung);
+
+	ret = platform_device_add(pdev);
+	if (ret) {
+		platform_device_put(pdev);
+		return ret;
+	}
+
 	return 0;
 }
 
