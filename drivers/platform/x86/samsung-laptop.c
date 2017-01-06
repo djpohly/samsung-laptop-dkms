@@ -1208,21 +1208,10 @@ static struct attribute_group platform_attribute_group = {
 	.is_visible = samsung_sysfs_is_visible,
 	.attrs = platform_attributes
 };
-
-static void samsung_sysfs_exit(struct samsung_laptop *samsung)
-{
-	struct platform_device *device = samsung->platform_device;
-
-	sysfs_remove_group(&device->dev.kobj, &platform_attribute_group);
-}
-
-static int __init samsung_sysfs_init(struct samsung_laptop *samsung)
-{
-	struct platform_device *device = samsung->platform_device;
-
-	return sysfs_create_group(&device->dev.kobj, &platform_attribute_group);
-
-}
+static const struct attribute_group *platform_attribute_groups[] = {
+	&platform_attribute_group,
+	NULL
+};
 
 static int show_call(struct seq_file *m, void *data)
 {
@@ -1658,10 +1647,6 @@ static int samsung_laptop_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	ret = samsung_sysfs_init(samsung);
-	if (ret)
-		goto error_sysfs;
-
 	ret = samsung_backlight_init(samsung);
 	if (ret)
 		goto error_backlight;
@@ -1696,8 +1681,6 @@ error_leds:
 error_rfkill:
 	samsung_backlight_exit(samsung);
 error_backlight:
-	samsung_sysfs_exit(samsung);
-error_sysfs:
 	samsung_sabi_exit(samsung);
 	return ret;
 }
@@ -1713,7 +1696,6 @@ static int samsung_laptop_remove(struct platform_device *pdev)
 	samsung_leds_exit(samsung);
 	samsung_rfkill_exit(samsung);
 	samsung_backlight_exit(samsung);
-	samsung_sysfs_exit(samsung);
 	samsung_sabi_exit(samsung);
 	return 0;
 }
@@ -1723,6 +1705,7 @@ static struct platform_driver samsung_laptop_driver = {
 	.driver = {
 		.name = "samsung",
 		.owner = THIS_MODULE,
+		.groups = platform_attribute_groups,
 	},
 	.probe = samsung_laptop_probe,
 	.remove = samsung_laptop_remove,
