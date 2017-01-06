@@ -904,14 +904,6 @@ static ssize_t set_lid_handling(struct device *dev,
 static DEVICE_ATTR(lid_handling, S_IWUSR | S_IRUGO,
 		   get_lid_handling, set_lid_handling);
 
-static struct attribute *platform_attributes[] = {
-	&dev_attr_performance_level.attr,
-	&dev_attr_battery_life_extender.attr,
-	&dev_attr_usb_charge.attr,
-	&dev_attr_lid_handling.attr,
-	NULL
-};
-
 static int find_signature(void __iomem *memcheck, const char *testStr)
 {
 	int i = 0;
@@ -1183,35 +1175,6 @@ static int samsung_backlight_init(struct samsung_laptop *samsung)
 
 	return 0;
 }
-
-static umode_t samsung_sysfs_is_visible(struct kobject *kobj,
-					struct attribute *attr, int idx)
-{
-	struct device *dev = container_of(kobj, struct device, kobj);
-	struct platform_device *pdev = to_platform_device(dev);
-	struct samsung_laptop *samsung = platform_get_drvdata(pdev);
-	bool ok = true;
-
-	if (attr == &dev_attr_performance_level.attr)
-		ok = !!samsung->config->performance_levels[0].name;
-	if (attr == &dev_attr_battery_life_extender.attr)
-		ok = !!(read_battery_life_extender(samsung) >= 0);
-	if (attr == &dev_attr_usb_charge.attr)
-		ok = !!(read_usb_charge(samsung) >= 0);
-	if (attr == &dev_attr_lid_handling.attr)
-		ok = !!(read_lid_handling(samsung) >= 0);
-
-	return ok ? attr->mode : 0;
-}
-
-static struct attribute_group platform_attribute_group = {
-	.is_visible = samsung_sysfs_is_visible,
-	.attrs = platform_attributes
-};
-static const struct attribute_group *platform_attribute_groups[] = {
-	&platform_attribute_group,
-	NULL
-};
 
 static int show_call(struct seq_file *m, void *data)
 {
@@ -1699,6 +1662,44 @@ static int samsung_laptop_remove(struct platform_device *pdev)
 	samsung_sabi_exit(samsung);
 	return 0;
 }
+
+static umode_t samsung_sysfs_is_visible(struct kobject *kobj,
+					struct attribute *attr, int idx)
+{
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct platform_device *pdev = to_platform_device(dev);
+	struct samsung_laptop *samsung = platform_get_drvdata(pdev);
+	bool ok = true;
+
+	if (attr == &dev_attr_performance_level.attr)
+		ok = !!samsung->config->performance_levels[0].name;
+	if (attr == &dev_attr_battery_life_extender.attr)
+		ok = !!(read_battery_life_extender(samsung) >= 0);
+	if (attr == &dev_attr_usb_charge.attr)
+		ok = !!(read_usb_charge(samsung) >= 0);
+	if (attr == &dev_attr_lid_handling.attr)
+		ok = !!(read_lid_handling(samsung) >= 0);
+
+	return ok ? attr->mode : 0;
+}
+
+/* Sysfs attribute setup */
+static struct attribute *platform_attributes[] = {
+	&dev_attr_performance_level.attr,
+	&dev_attr_battery_life_extender.attr,
+	&dev_attr_usb_charge.attr,
+	&dev_attr_lid_handling.attr,
+	NULL
+};
+
+static struct attribute_group platform_attribute_group = {
+	.is_visible = samsung_sysfs_is_visible,
+	.attrs = platform_attributes
+};
+static const struct attribute_group *platform_attribute_groups[] = {
+	&platform_attribute_group,
+	NULL
+};
 
 /* Driver definition for platform device */
 static struct platform_driver samsung_laptop_driver = {
