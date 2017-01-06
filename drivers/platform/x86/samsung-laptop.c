@@ -1649,6 +1649,25 @@ static struct dmi_system_id __initdata samsung_dmi_table[] = {
 };
 MODULE_DEVICE_TABLE(dmi, samsung_dmi_table);
 
+static int samsung_laptop_probe(struct platform_device *pdev)
+{
+	return 0;
+}
+
+static int samsung_laptop_remove(struct platform_device *pdev)
+{
+	return 0;
+}
+
+/* Driver definition for platform device */
+static struct platform_driver samsung_laptop_driver = {
+	.driver = {
+		.name = "samsung",
+		.owner = THIS_MODULE,
+	},
+	.probe = samsung_laptop_probe,
+	.remove = samsung_laptop_remove,
+};
 static struct platform_device *samsung_platform_device;
 
 static int __init samsung_platform_init(struct samsung_laptop *samsung)
@@ -1656,18 +1675,28 @@ static int __init samsung_platform_init(struct samsung_laptop *samsung)
 	struct platform_device *pdev;
 	int ret;
 
+	ret = platform_driver_register(&samsung_laptop_driver);
+	if (ret)
+		return ret;
+
 	pdev = platform_device_alloc("samsung", -1);
-	if (!pdev)
-		return -ENOMEM;
+	if (!pdev) {
+		ret = -ENOMEM;
+		goto error_device_alloc;
+	}
 	platform_set_drvdata(samsung->platform_device, samsung);
 
 	ret = platform_device_add(pdev);
-	if (ret) {
-		platform_device_put(pdev);
-		return ret;
-	}
+	if (ret)
+		goto error_device_add;
 
 	return 0;
+
+error_device_add:
+	platform_device_put(pdev);
+error_device_alloc:
+	platform_driver_unregister(&samsung_laptop_driver);
+	return ret;
 }
 
 static void samsung_platform_exit(struct samsung_laptop *samsung)
@@ -1676,6 +1705,7 @@ static void samsung_platform_exit(struct samsung_laptop *samsung)
 		platform_device_unregister(samsung->platform_device);
 		samsung->platform_device = NULL;
 	}
+	platform_driver_unregister(&samsung_laptop_driver);
 }
 
 static int __init samsung_init(void)
