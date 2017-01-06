@@ -1791,6 +1791,7 @@ error_sysfs:
 error_sabi:
 	samsung_platform_exit(samsung);
 error_platform:
+	mutex_destroy(&samsung->sabi_mutex);
 	kfree(samsung);
 	return ret;
 }
@@ -1811,6 +1812,7 @@ static void __exit samsung_exit(void)
 	samsung_sabi_exit(samsung);
 	samsung_platform_exit(samsung);
 
+	mutex_destroy(&samsung->sabi_mutex);
 	kfree(samsung);
 	samsung_platform_device = NULL;
 }
