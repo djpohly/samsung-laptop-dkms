@@ -1649,6 +1649,8 @@ static struct dmi_system_id __initdata samsung_dmi_table[] = {
 };
 MODULE_DEVICE_TABLE(dmi, samsung_dmi_table);
 
+static struct platform_device *samsung_platform_device;
+
 static int samsung_laptop_probe(struct platform_device *pdev)
 {
 	return 0;
@@ -1668,7 +1670,6 @@ static struct platform_driver samsung_laptop_driver = {
 	.probe = samsung_laptop_probe,
 	.remove = samsung_laptop_remove,
 };
-static struct platform_device *samsung_platform_device;
 
 static int __init samsung_platform_init(struct samsung_laptop *samsung)
 {
