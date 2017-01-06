@@ -1745,23 +1745,14 @@ static int __init samsung_platform_init(void)
 	if (ret)
 		return ret;
 
-	samsung_platform_device = platform_device_alloc("samsung", -1);
-	if (!samsung_platform_device) {
-		ret = -ENOMEM;
-		goto error_device_alloc;
+	samsung_platform_device = platform_device_register_simple("samsung", -1,
+			NULL, 0);
+	if (IS_ERR(samsung_platform_device)) {
+		platform_driver_unregister(&samsung_laptop_driver);
+		return PTR_ERR(samsung_platform_device);
 	}
 
-	ret = platform_device_add(samsung_platform_device);
-	if (ret)
-		goto error_device_add;
-
 	return 0;
-
-error_device_add:
-	platform_device_put(samsung_platform_device);
-error_device_alloc:
-	platform_driver_unregister(&samsung_laptop_driver);
-	return ret;
 }
 
 static void __exit samsung_platform_exit(void)
