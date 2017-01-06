@@ -1730,58 +1730,11 @@ static struct platform_driver samsung_laptop_driver = {
 	.remove = samsung_laptop_remove,
 };
 
-static int __init samsung_platform_init(struct samsung_laptop *samsung)
-{
-	struct platform_device *pdev;
-	int ret;
-
-	ret = platform_driver_register(&samsung_laptop_driver);
-	if (ret)
-		return ret;
-
-	pdev = platform_device_alloc("samsung", -1);
-	if (!pdev) {
-		ret = -ENOMEM;
-		goto error_device_alloc;
-	}
-	platform_set_drvdata(samsung->platform_device, samsung);
-
-	ret = platform_device_add(pdev);
-	if (ret)
-		goto error_device_add;
-
-	samsung_platform_device = samsung->platform_device;
-	return 0;
-
-error_device_add:
-	platform_device_put(pdev);
-error_device_alloc:
-	platform_driver_unregister(&samsung_laptop_driver);
-	return ret;
-}
-
-static void __exit samsung_platform_exit(void)
-{
-	samsung_platform_device = NULL;
-
-	if (samsung->platform_device) {
-		platform_device_unregister(samsung->platform_device);
-		samsung->platform_device = NULL;
-	}
-	platform_driver_unregister(&samsung_laptop_driver);
-}
-
-static int __init samsung_init(void)
+static int __init samsung_platform_init(void)
 {
 	struct samsung_laptop *samsung;
+	struct platform_device *pdev;
 	int ret;
-
-	if (efi_enabled(EFI_BOOT))
-		return -ENODEV;
-
-	quirks = &samsung_unknown;
-	if (!force && !dmi_check_system(samsung_dmi_table))
-		return -ENODEV;
 
 	samsung = kzalloc(sizeof(*samsung), GFP_KERNEL);
 	if (!samsung)
@@ -1801,28 +1754,66 @@ static int __init samsung_init(void)
 		samsung->handle_backlight = false;
 #endif
 
-	ret = samsung_platform_init(samsung);
+	ret = platform_driver_register(&samsung_laptop_driver);
 	if (ret)
-		goto error_platform;
+		goto error_driver_register;
 
-	return ret;
+	pdev = platform_device_alloc("samsung", -1);
+	if (!pdev) {
+		ret = -ENOMEM;
+		goto error_device_alloc;
+	}
+	platform_set_drvdata(samsung->platform_device, samsung);
 
-error_platform:
+	ret = platform_device_add(pdev);
+	if (ret)
+		goto error_device_add;
+
+	samsung_platform_device = samsung->platform_device;
+	return 0;
+
+error_device_add:
+	platform_device_put(pdev);
+error_device_alloc:
+	platform_driver_unregister(&samsung_laptop_driver);
+error_driver_register:
 	mutex_destroy(&samsung->sabi_mutex);
 	kfree(samsung);
 	return ret;
 }
 
-static void __exit samsung_exit(void)
+static void __exit samsung_platform_exit(void)
 {
 	struct samsung_laptop *samsung;
 
 	samsung = platform_get_drvdata(samsung_platform_device);
+	samsung_platform_device = NULL;
 
-	samsung_platform_exit(samsung);
+	if (samsung->platform_device) {
+		platform_device_unregister(samsung->platform_device);
+		samsung->platform_device = NULL;
+	}
+	platform_driver_unregister(&samsung_laptop_driver);
 
 	mutex_destroy(&samsung->sabi_mutex);
 	kfree(samsung);
+}
+
+static int __init samsung_init(void)
+{
+	if (efi_enabled(EFI_BOOT))
+		return -ENODEV;
+
+	quirks = &samsung_unknown;
+	if (!force && !dmi_check_system(samsung_dmi_table))
+		return -ENODEV;
+
+	return samsung_platform_init();
+}
+
+static void __exit samsung_exit(void)
+{
+	samsung_platform_exit();
 }
 
 module_init(samsung_init);
