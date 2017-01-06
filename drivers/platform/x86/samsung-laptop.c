@@ -1603,12 +1603,32 @@ MODULE_DEVICE_TABLE(dmi, samsung_dmi_table);
 
 static int samsung_laptop_probe(struct platform_device *pdev)
 {
-	struct samsung_laptop *samsung = platform_get_drvdata(pdev);
+	struct samsung_laptop *samsung;
 	int ret;
+
+	samsung = kzalloc(sizeof(*samsung), GFP_KERNEL);
+	if (!samsung)
+		return -ENOMEM;
+
+	mutex_init(&samsung->sabi_mutex);
+	samsung->handle_backlight = true;
+	samsung->quirks = quirks;
+
+#ifdef CONFIG_ACPI
+	if (samsung->quirks->broken_acpi_video)
+		acpi_video_set_dmi_backlight_type(acpi_backlight_vendor);
+	if (samsung->quirks->use_native_backlight)
+		acpi_video_set_dmi_backlight_type(acpi_backlight_native);
+
+	if (acpi_video_get_backlight_type() != acpi_backlight_vendor)
+		samsung->handle_backlight = false;
+#endif
+
+	platform_set_drvdata(samsung->platform_device, samsung);
 
 	ret = samsung_sabi_init(samsung);
 	if (ret)
-		return ret;
+		goto error_sabi;
 
 	ret = samsung_backlight_init(samsung);
 	if (ret)
@@ -1645,6 +1665,9 @@ error_rfkill:
 	samsung_backlight_exit(samsung);
 error_backlight:
 	samsung_sabi_exit(samsung);
+error_sabi:
+	mutex_destroy(&samsung->sabi_mutex);
+	kfree(samsung);
 	return ret;
 }
 
@@ -1660,6 +1683,9 @@ static int samsung_laptop_remove(struct platform_device *pdev)
 	samsung_rfkill_exit(samsung);
 	samsung_backlight_exit(samsung);
 	samsung_sabi_exit(samsung);
+
+	mutex_destroy(&samsung->sabi_mutex);
+	kfree(samsung);
 	return 0;
 }
 
@@ -1715,71 +1741,38 @@ static struct platform_device *samsung_platform_device;
 
 static int __init samsung_platform_init(void)
 {
-	struct samsung_laptop *samsung;
-	struct platform_device *pdev;
 	int ret;
-
-	samsung = kzalloc(sizeof(*samsung), GFP_KERNEL);
-	if (!samsung)
-		return -ENOMEM;
-
-	mutex_init(&samsung->sabi_mutex);
-	samsung->handle_backlight = true;
-	samsung->quirks = quirks;
-
-#ifdef CONFIG_ACPI
-	if (samsung->quirks->broken_acpi_video)
-		acpi_video_set_dmi_backlight_type(acpi_backlight_vendor);
-	if (samsung->quirks->use_native_backlight)
-		acpi_video_set_dmi_backlight_type(acpi_backlight_native);
-
-	if (acpi_video_get_backlight_type() != acpi_backlight_vendor)
-		samsung->handle_backlight = false;
-#endif
 
 	ret = platform_driver_register(&samsung_laptop_driver);
 	if (ret)
-		goto error_driver_register;
+		return ret;
 
-	pdev = platform_device_alloc("samsung", -1);
-	if (!pdev) {
+	samsung_platform_device = platform_device_alloc("samsung", -1);
+	if (!samsung_platform_device) {
 		ret = -ENOMEM;
 		goto error_device_alloc;
 	}
-	platform_set_drvdata(samsung->platform_device, samsung);
 
-	ret = platform_device_add(pdev);
+	ret = platform_device_add(samsung_platform_device);
 	if (ret)
 		goto error_device_add;
 
-	samsung_platform_device = samsung->platform_device;
 	return 0;
 
 error_device_add:
-	platform_device_put(pdev);
+	platform_device_put(samsung_platform_device);
 error_device_alloc:
 	platform_driver_unregister(&samsung_laptop_driver);
-error_driver_register:
-	mutex_destroy(&samsung->sabi_mutex);
-	kfree(samsung);
 	return ret;
 }
 
 static void __exit samsung_platform_exit(void)
 {
-	struct samsung_laptop *samsung;
-
-	samsung = platform_get_drvdata(samsung_platform_device);
-	samsung_platform_device = NULL;
-
-	if (samsung->platform_device) {
-		platform_device_unregister(samsung->platform_device);
-		samsung->platform_device = NULL;
+	if (samsung_platform_device) {
+		platform_device_unregister(samsung_platform_device);
+		samsung_platform_device = NULL;
 	}
 	platform_driver_unregister(&samsung_laptop_driver);
-
-	mutex_destroy(&samsung->sabi_mutex);
-	kfree(samsung);
 }
 
 static int __init samsung_init(void)
