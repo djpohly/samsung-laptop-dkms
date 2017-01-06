@@ -1739,9 +1739,16 @@ static struct platform_driver samsung_laptop_driver = {
 };
 static struct platform_device *samsung_platform_device;
 
-static int __init samsung_platform_init(void)
+static int __init samsung_init(void)
 {
 	int ret;
+
+	if (efi_enabled(EFI_BOOT))
+		return -ENODEV;
+
+	quirks = &samsung_unknown;
+	if (!force && !dmi_check_system(samsung_dmi_table))
+		return -ENODEV;
 
 	ret = platform_driver_register(&samsung_laptop_driver);
 	if (ret)
@@ -1757,30 +1764,13 @@ static int __init samsung_platform_init(void)
 	return 0;
 }
 
-static void __exit samsung_platform_exit(void)
+static void __exit samsung_exit(void)
 {
 	if (samsung_platform_device) {
 		platform_device_unregister(samsung_platform_device);
 		samsung_platform_device = NULL;
 	}
 	platform_driver_unregister(&samsung_laptop_driver);
-}
-
-static int __init samsung_init(void)
-{
-	if (efi_enabled(EFI_BOOT))
-		return -ENODEV;
-
-	quirks = &samsung_unknown;
-	if (!force && !dmi_check_system(samsung_dmi_table))
-		return -ENODEV;
-
-	return samsung_platform_init();
-}
-
-static void __exit samsung_exit(void)
-{
-	samsung_platform_exit();
 }
 
 module_init(samsung_init);
