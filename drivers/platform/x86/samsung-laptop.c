@@ -1031,12 +1031,10 @@ static void samsung_lid_handling_exit(struct samsung_laptop *samsung)
 
 static int samsung_lid_handling_init(struct samsung_laptop *samsung)
 {
-	int retval = 0;
-
 	if (samsung->quirks->lid_handling)
-		retval = write_lid_handling(samsung, 1);
+		return write_lid_handling(samsung, 1);
 
-	return retval;
+	return 0;
 }
 
 static int kbd_backlight_enable(struct samsung_laptop *samsung)
@@ -1653,7 +1651,7 @@ static int samsung_laptop_probe(struct platform_device *pdev)
 	samsung->pm_nb.notifier_call = samsung_pm_notification;
 	register_pm_notifier(&samsung->pm_nb);
 
-	return ret;
+	return 0;
 
 error_debugfs:
 	samsung_lid_handling_exit(samsung);
