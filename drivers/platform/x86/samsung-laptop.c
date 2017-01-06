@@ -975,13 +975,13 @@ static int samsung_new_rfkill(struct samsung_laptop *samsung,
 	return 0;
 }
 
-static int __init samsung_rfkill_init_seclinux(struct samsung_laptop *samsung)
+static int samsung_rfkill_init_seclinux(struct samsung_laptop *samsung)
 {
 	return samsung_new_rfkill(samsung, &samsung->wlan, "samsung-wlan",
 				  RFKILL_TYPE_WLAN, &seclinux_rfkill_ops, -1);
 }
 
-static int __init samsung_rfkill_init_swsmi(struct samsung_laptop *samsung)
+static int samsung_rfkill_init_swsmi(struct samsung_laptop *samsung)
 {
 	struct sabi_data data;
 	int ret;
@@ -1022,7 +1022,7 @@ exit:
 	return ret;
 }
 
-static int __init samsung_rfkill_init(struct samsung_laptop *samsung)
+static int samsung_rfkill_init(struct samsung_laptop *samsung)
 {
 	if (samsung->config->sabi_version == 2)
 		return samsung_rfkill_init_seclinux(samsung);
@@ -1037,7 +1037,7 @@ static void samsung_lid_handling_exit(struct samsung_laptop *samsung)
 		write_lid_handling(samsung, 0);
 }
 
-static int __init samsung_lid_handling_init(struct samsung_laptop *samsung)
+static int samsung_lid_handling_init(struct samsung_laptop *samsung)
 {
 	int retval = 0;
 
@@ -1126,7 +1126,7 @@ static void samsung_leds_exit(struct samsung_laptop *samsung)
 		led_classdev_unregister(&samsung->kbd_led);
 }
 
-static int __init samsung_leds_init(struct samsung_laptop *samsung)
+static int samsung_leds_init(struct samsung_laptop *samsung)
 {
 	int ret = 0;
 
@@ -1156,7 +1156,7 @@ static void samsung_backlight_exit(struct samsung_laptop *samsung)
 	}
 }
 
-static int __init samsung_backlight_init(struct samsung_laptop *samsung)
+static int samsung_backlight_init(struct samsung_laptop *samsung)
 {
 	struct backlight_device *bd;
 	struct backlight_properties props;
@@ -1360,7 +1360,7 @@ static void samsung_sabi_exit(struct samsung_laptop *samsung)
 	samsung->config = NULL;
 }
 
-static __init void samsung_sabi_infos(struct samsung_laptop *samsung, int loca,
+static void samsung_sabi_infos(struct samsung_laptop *samsung, int loca,
 				      unsigned int ifaceP)
 {
 	const struct sabi_config *config = samsung->config;
@@ -1385,7 +1385,7 @@ static __init void samsung_sabi_infos(struct samsung_laptop *samsung, int loca,
 	printk(KERN_DEBUG " SABI pointer = 0x%08x\n", ifaceP);
 }
 
-static void __init samsung_sabi_diag(struct samsung_laptop *samsung)
+static void samsung_sabi_diag(struct samsung_laptop *samsung)
 {
 	int loca = find_signature(samsung->f0000_segment, "SDiaG@");
 	int i;
@@ -1413,7 +1413,7 @@ static void __init samsung_sabi_diag(struct samsung_laptop *samsung)
 		pr_info("sdiag: %s", samsung->sdiag);
 }
 
-static int __init samsung_sabi_init(struct samsung_laptop *samsung)
+static int samsung_sabi_init(struct samsung_laptop *samsung)
 {
 	const struct sabi_config *config = NULL;
 	const struct sabi_commands *commands;
@@ -1512,7 +1512,7 @@ static int samsung_pm_notification(struct notifier_block *nb,
 
 static struct samsung_quirks *quirks;
 
-static int __init samsung_dmi_matched(const struct dmi_system_id *d)
+static int samsung_dmi_matched(const struct dmi_system_id *d)
 {
 	quirks = d->driver_data;
 	return 0;
@@ -1653,11 +1653,70 @@ static struct platform_device *samsung_platform_device;
 
 static int samsung_laptop_probe(struct platform_device *pdev)
 {
-	return 0;
+	struct samsung_laptop *samsung = platform_get_drvdata(pdev);
+	int ret;
+
+	ret = samsung_sabi_init(samsung);
+	if (ret)
+		return ret;
+
+	ret = samsung_sysfs_init(samsung);
+	if (ret)
+		goto error_sysfs;
+
+	ret = samsung_backlight_init(samsung);
+	if (ret)
+		goto error_backlight;
+
+	ret = samsung_rfkill_init(samsung);
+	if (ret)
+		goto error_rfkill;
+
+	ret = samsung_leds_init(samsung);
+	if (ret)
+		goto error_leds;
+
+	ret = samsung_lid_handling_init(samsung);
+	if (ret)
+		goto error_lid_handling;
+
+	ret = samsung_debugfs_init(samsung);
+	if (ret)
+		goto error_debugfs;
+
+	samsung->pm_nb.notifier_call = samsung_pm_notification;
+	register_pm_notifier(&samsung->pm_nb);
+
+	return ret;
+
+error_debugfs:
+	samsung_lid_handling_exit(samsung);
+error_lid_handling:
+	samsung_leds_exit(samsung);
+error_leds:
+	samsung_rfkill_exit(samsung);
+error_rfkill:
+	samsung_backlight_exit(samsung);
+error_backlight:
+	samsung_sysfs_exit(samsung);
+error_sysfs:
+	samsung_sabi_exit(samsung);
+	return ret;
 }
 
 static int samsung_laptop_remove(struct platform_device *pdev)
 {
+	struct samsung_laptop *samsung = platform_get_drvdata(pdev);
+
+	unregister_pm_notifier(&samsung->pm_nb);
+
+	samsung_debugfs_exit(samsung);
+	samsung_lid_handling_exit(samsung);
+	samsung_leds_exit(samsung);
+	samsung_rfkill_exit(samsung);
+	samsung_backlight_exit(samsung);
+	samsung_sysfs_exit(samsung);
+	samsung_sabi_exit(samsung);
 	return 0;
 }
 
@@ -1691,6 +1750,7 @@ static int __init samsung_platform_init(struct samsung_laptop *samsung)
 	if (ret)
 		goto error_device_add;
 
+	samsung_platform_device = samsung->platform_device;
 	return 0;
 
 error_device_add:
@@ -1700,8 +1760,10 @@ error_device_alloc:
 	return ret;
 }
 
-static void samsung_platform_exit(struct samsung_laptop *samsung)
+static void __exit samsung_platform_exit(void)
 {
+	samsung_platform_device = NULL;
+
 	if (samsung->platform_device) {
 		platform_device_unregister(samsung->platform_device);
 		samsung->platform_device = NULL;
@@ -1743,54 +1805,8 @@ static int __init samsung_init(void)
 	if (ret)
 		goto error_platform;
 
-	ret = samsung_sabi_init(samsung);
-	if (ret)
-		goto error_sabi;
-
-	ret = samsung_sysfs_init(samsung);
-	if (ret)
-		goto error_sysfs;
-
-	ret = samsung_backlight_init(samsung);
-	if (ret)
-		goto error_backlight;
-
-	ret = samsung_rfkill_init(samsung);
-	if (ret)
-		goto error_rfkill;
-
-	ret = samsung_leds_init(samsung);
-	if (ret)
-		goto error_leds;
-
-	ret = samsung_lid_handling_init(samsung);
-	if (ret)
-		goto error_lid_handling;
-
-	ret = samsung_debugfs_init(samsung);
-	if (ret)
-		goto error_debugfs;
-
-	samsung->pm_nb.notifier_call = samsung_pm_notification;
-	register_pm_notifier(&samsung->pm_nb);
-
-	samsung_platform_device = samsung->platform_device;
 	return ret;
 
-error_debugfs:
-	samsung_lid_handling_exit(samsung);
-error_lid_handling:
-	samsung_leds_exit(samsung);
-error_leds:
-	samsung_rfkill_exit(samsung);
-error_rfkill:
-	samsung_backlight_exit(samsung);
-error_backlight:
-	samsung_sysfs_exit(samsung);
-error_sysfs:
-	samsung_sabi_exit(samsung);
-error_sabi:
-	samsung_platform_exit(samsung);
 error_platform:
 	mutex_destroy(&samsung->sabi_mutex);
 	kfree(samsung);
@@ -1802,20 +1818,11 @@ static void __exit samsung_exit(void)
 	struct samsung_laptop *samsung;
 
 	samsung = platform_get_drvdata(samsung_platform_device);
-	unregister_pm_notifier(&samsung->pm_nb);
 
-	samsung_debugfs_exit(samsung);
-	samsung_lid_handling_exit(samsung);
-	samsung_leds_exit(samsung);
-	samsung_rfkill_exit(samsung);
-	samsung_backlight_exit(samsung);
-	samsung_sysfs_exit(samsung);
-	samsung_sabi_exit(samsung);
 	samsung_platform_exit(samsung);
 
 	mutex_destroy(&samsung->sabi_mutex);
 	kfree(samsung);
-	samsung_platform_device = NULL;
 }
 
 module_init(samsung_init);
