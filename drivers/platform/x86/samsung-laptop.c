@@ -44,6 +44,8 @@
 #define WL_STATUS_WLAN			0x0
 #define WL_STATUS_BT			0x2
 
+#define SAMSUNG_DEV_NAME		"samsung"
+
 /* Structure get/set data using sabi */
 struct sabi_data {
 	union {
@@ -1159,7 +1161,7 @@ static int samsung_backlight_init(struct samsung_laptop *samsung)
 	props.max_brightness = samsung->config->max_brightness -
 		samsung->config->min_brightness;
 
-	bd = backlight_device_register("samsung",
+	bd = backlight_device_register(SAMSUNG_DEV_NAME,
 				       &samsung->platform_device->dev,
 				       samsung, &backlight_ops,
 				       &props);
@@ -1728,7 +1730,7 @@ static const struct attribute_group *platform_attribute_groups[] = {
 /* Driver definition for platform device */
 static struct platform_driver samsung_laptop_driver = {
 	.driver = {
-		.name = "samsung",
+		.name = SAMSUNG_DEV_NAME,
 		.owner = THIS_MODULE,
 		.groups = platform_attribute_groups,
 	},
@@ -1745,8 +1747,8 @@ static int __init samsung_platform_init(void)
 	if (ret)
 		return ret;
 
-	samsung_platform_device = platform_device_register_simple("samsung", -1,
-			NULL, 0);
+	samsung_platform_device = platform_device_register_simple(
+			SAMSUNG_DEV_NAME, -1, NULL, 0);
 	if (IS_ERR(samsung_platform_device)) {
 		platform_driver_unregister(&samsung_laptop_driver);
 		return PTR_ERR(samsung_platform_device);
